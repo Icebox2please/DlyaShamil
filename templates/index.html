@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Explorer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --background-color: #f8f9fa;
+            --text-color: #2c3e50;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+
+        .navbar {
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .btn-primary {
+            background-color: var(--secondary-color);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .transaction-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .validator-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .status-active {
+            background-color: #2ecc71;
+        }
+
+        .status-inactive {
+            background-color: #e74c3c;
+        }
+
+        .contract-code {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .network-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            background-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-cube me-2"></i>
+                Blockchain Explorer
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#transactions">Transactions</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#contracts">Contracts</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#validators">Validators</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="text-center">Blockchain Dashboard</h1>
+            </div>
+        </div>
+        <div class="row mb-4">
+            <div class="col text-center">
+                <a href="/blocks" class="btn btn-primary me-2">
+                    <i class="bi bi-box"></i> View Blocks
+                </a>
+                <a href="/contract" class="btn btn-success">
+                    <i class="bi bi-file-code"></i> View Contract
+                </a>
+            </div>
+        </div>
+        <!-- Dashboard -->
+        <div id="dashboard" class="mb-5">
+            <h2 class="mb-4">Dashboard</h2>
+            <div class="row">
+                <div class="col-md-3 mb-4">
+                    <div class="card stats-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Node Public Key</h5>
+                            <p id="dashboardPublicKey" class="text-break">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="card stats-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Block Height</h5>
+                            <h2 id="blockHeight">0</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="card stats-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Active Validators</h5>
+                            <h2 id="activeValidators">0</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="card stats-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Pending Transactions</h5>
+                            <h2 id="pendingTransactions">0</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="card stats-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Network Health</h5>
+                            <h2 id="networkHealth">100%</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transactions -->
+        <div id="transactions" class="mb-5">
+            <h2 class="mb-4">Transactions</h2>
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">New Transaction</h5>
+                            <form id="transactionForm">
+                                <div class="mb-3">
+                                    <label class="form-label">From</label>
+                                    <input type="text" class="form-control" id="fromAddress" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">To</label>
+                                    <input type="text" class="form-control" id="toAddress" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Amount</label>
+                                    <input type="number" class="form-control" id="amount" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Send Transaction</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Recent Transactions</h5>
+                            <div class="transaction-list" id="transactionList">
+                                <!-- Transactions will be added here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Smart Contracts -->
+        <div id="contracts" class="mb-5">
+            <h2 class="mb-4">Smart Contracts</h2>
+            <div class="row">
+                <!-- Deploy Contract -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Deploy Contract</h5>
+                            <form id="deployContractForm">
+                                <div class="mb-3">
+                                    <label class="form-label">Contract Name</label>
+                                    <input type="text" class="form-control" id="contractName" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Contract Code</label>
+                                    <textarea class="form-control contract-code" id="contractCode" rows="10" required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Deploy Contract</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Execute Contract -->
+                <div class="col-md-6 mb-4">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Execute Contract</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="executeContractForm">
+                                <div class="mb-3">
+                                    <label for="contractName" class="form-label">Contract Name</label>
+                                    <select class="form-select" id="contractName" onchange="updateContractFunctions()">
+                                        <option value="">Select a contract</option>
+                                        <option value="Counter">Counter</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="functionName" class="form-label">Function</label>
+                                    <select class="form-select" id="functionName">
+                                        <option value="">Select a function</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="functionArgs" class="form-label">Arguments (comma-separated)</label>
+                                    <input type="text" class="form-control" id="functionArgs" placeholder="e.g. 1,2,3">
+                                    <div class="form-text" id="argsHelp">Select a function to see argument requirements</div>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Execute</button>
+                            </form>
+                            
+                            <div class="mt-4">
+                                <h6>Execution Results</h6>
+                                <div id="executionResult" class="alert alert-info" style="display: none;"></div>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <h6>Contract Events</h6>
+                                <div id="contractEvents" class="list-group"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Contract List -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Deployed Contracts</h5>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>State</th>
+                                            <th>Events</th>
+                                            <th>Gas Used</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="contractsList">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Validators -->
+        <div id="validators" class="mb-5">
+            <h2 class="mb-4">Validators</h2>
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Add Validator</h5>
+                            <div class="node-info">
+                                <h4>Node Public Key:</h4>
+                                <p id="validatorPublicKey">Loading...</p>
+                            </div>
+                            <form id="addValidatorForm">
+                                <div class="mb-3">
+                                    <label class="form-label">Validator Address</label>
+                                    <input type="text" class="form-control" id="validatorAddress" placeholder="Validator Address" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Stake Amount</label>
+                                    <input type="number" class="form-control" id="validatorStake" placeholder="Stake Amount" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Add Validator</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Active Validators</h5>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Status</th>
+                                            <th>Address</th>
+                                            <th>Stake</th>
+                                            <th>Last Block</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="validatorList">
+                                        <!-- Validators will be added here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Status -->
+    <div class="network-status">
+        <i class="fas fa-circle me-2"></i>
+        <span id="networkStatus">Connected</span>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Update dashboard data
+        async function updateDashboard() {
+            try {
+                const response = await fetch('/api/chain');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // Обновляем высоту блока
+                    document.getElementById('blockHeight').textContent = data.chain.length;
+                    
+                    // Обновляем количество ожидающих транзакций
+                    document.getElementById('pendingTransactions').textContent = data.pending_transactions?.length || 0;
+                    
+                    // Обновляем количество активных валидаторов
+                    const validatorsCount = Object.keys(data.validators || {}).length;
+                    document.getElementById('activeValidators').textContent = validatorsCount;
+                    
+                    // Обновляем состояние сети
+                    const health = calculateNetworkHealth(data);
+                    document.getElementById('networkHealth').textContent = `${health}%`;
+                } else {
+                    console.error('Error updating dashboard:', data.error);
+                }
+            } catch (error) {
+                console.error('Error updating dashboard:', error);
+            }
+        }
+
+        // Calculate network health
+        function calculateNetworkHealth(data) {
+            if (!data.validators || Object.keys(data.validators).length === 0) {
+                return 0;
+            }
+            
+            // Подсчитываем активных валидаторов (тех, у кого стейк > 0)
+            const activeValidators = Object.values(data.validators).filter(stake => stake > 0).length;
+            const totalValidators = Object.keys(data.validators).length;
+            
+            // Рассчитываем процент здоровья сети
+            return Math.round((activeValidators / totalValidators) * 100);
+        }
+
+        // Handle new transaction
+        document.getElementById('transactionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const response = await fetch('/api/transactions/new', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        from: document.getElementById('fromAddress').value,
+                        to: document.getElementById('toAddress').value,
+                        amount: parseFloat(document.getElementById('amount').value)
+                    })
+                });
+                
+                if (response.ok) {
+                    alert('Transaction submitted successfully!');
+                    updateDashboard();
+                } else {
+                    alert('Error submitting transaction');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error submitting transaction');
+            }
+        });
+
+        // Update contracts list
+        async function updateContracts() {
+            try {
+                const response = await fetch('/api/chain');
+                const data = await response.json();
+                
+                // Update contract select
+                const select = document.getElementById('executeContractName');
+                select.innerHTML = '<option value="">Select contract...</option>';
+                
+                // Update contracts table
+                const contractsList = document.getElementById('contractsList');
+                contractsList.innerHTML = '';
+                
+                if (data.contract_states) {
+                    Object.keys(data.contract_states).forEach(contractName => {
+                        // Add to select
+                        const option = document.createElement('option');
+                        option.value = contractName;
+                        option.textContent = contractName;
+                        select.appendChild(option);
+                        
+                        // Add to table
+                        const row = document.createElement('tr');
+                        const state = data.contract_states[contractName];
+                        const events = data.contract_events[contractName] || [];
+                        
+                        row.innerHTML = `
+                            <td>${contractName}</td>
+                            <td><pre class="mb-0">${JSON.stringify(state, null, 2)}</pre></td>
+                            <td>${events.join('<br>')}</td>
+                            <td>${state.gas_used || 0}</td>
+                        `;
+                        
+                        contractsList.appendChild(row);
+                    });
+                }
+            } catch (error) {
+                console.error('Error updating contracts:', error);
+            }
+        }
+        
+        // Handle contract deployment
+        document.getElementById('deployContractForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const response = await fetch('/api/contracts/deploy', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: document.getElementById('contractName').value,
+                        code: document.getElementById('contractCode').value
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    alert('Contract deployed successfully!');
+                    document.getElementById('deployContractForm').reset();
+                    updateContracts();
+                } else {
+                    alert('Error deploying contract: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error deploying contract:', error);
+                alert('Error deploying contract: ' + error.message);
+            }
+        });
+        
+        // Update contract functions when contract is selected
+        function updateContractFunctions() {
+            const contractName = document.getElementById('contractName').value;
+            const functionSelect = document.getElementById('functionName');
+            const argsHelp = document.getElementById('argsHelp');
+            
+            // Clear existing options
+            functionSelect.innerHTML = '<option value="">Select a function</option>';
+            
+            if (contractName === 'Counter') {
+                // Add Counter contract functions
+                const functions = [
+                    { name: 'increment', args: 'No arguments needed' },
+                    { name: 'decrement', args: 'No arguments needed' },
+                    { name: 'get_counter', args: 'No arguments needed' }
+                ];
+                
+                functions.forEach(func => {
+                    const option = document.createElement('option');
+                    option.value = func.name;
+                    option.textContent = func.name;
+                    functionSelect.appendChild(option);
+                });
+                
+                argsHelp.textContent = 'No arguments needed for Counter contract functions';
+            } else {
+                argsHelp.textContent = 'Enter arguments separated by commas';
+            }
+        }
+
+        // Handle contract execution
+        document.getElementById('executeContractForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const contractName = document.getElementById('contractName').value;
+            const functionName = document.getElementById('functionName').value;
+            const args = document.getElementById('functionArgs').value;
+            
+            if (!contractName || !functionName) {
+                alert('Please select both contract and function');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/contracts/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contract: contractName,
+                        function: functionName,
+                        args: args ? args.split(',').map(arg => arg.trim()) : []
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Display execution result
+                    const resultDiv = document.getElementById('executionResult');
+                    resultDiv.style.display = 'block';
+                    resultDiv.textContent = `Result: ${JSON.stringify(result, null, 2)}`;
+                    
+                    // Update contract events
+                    updateContractEvents(contractName);
+                } else {
+                    alert(`Error: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`Error executing contract: ${error.message}`);
+            }
+        });
+
+        async function updateContractEvents(contractName) {
+            try {
+                const response = await fetch('/api/chain');
+                const data = await response.json();
+                
+                const events = data.contract_events[contractName] || [];
+                const eventsDiv = document.getElementById('contractEvents');
+                eventsDiv.innerHTML = '';
+                
+                events.reverse().forEach(event => {
+                    const eventElement = document.createElement('div');
+                    eventElement.className = 'list-group-item';
+                    eventElement.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${event.function}</strong>
+                                ${event.args ? `(${event.args.join(', ')})` : ''}
+                            </div>
+                            <div>
+                                <small class="text-muted">${new Date(event.timestamp).toLocaleString()}</small>
+                            </div>
+                        </div>
+                        <div class="mt-1">
+                            <code>${JSON.stringify(event.result)}</code>
+                        </div>
+                    `;
+                    eventsDiv.appendChild(eventElement);
+                });
+            } catch (error) {
+                console.error('Error updating contract events:', error);
+            }
+        }
+
+        // Функция для получения информации о узле
+        async function getNodeInfo() {
+            try {
+                const response = await fetch('/api/node/info');
+                const data = await response.json();
+                if (data.public_key) {
+                    // Обновляем публичный ключ в дашборде
+                    document.getElementById('dashboardPublicKey').textContent = data.public_key;
+                    // Обновляем публичный ключ в секции валидаторов
+                    document.getElementById('validatorPublicKey').textContent = data.public_key;
+                    // Автоматически заполняем поле адреса валидатора
+                    document.getElementById('validatorAddress').value = data.public_key;
+                } else {
+                    console.error('Public key not available');
+                    document.getElementById('dashboardPublicKey').textContent = 'Not available';
+                    document.getElementById('validatorPublicKey').textContent = 'Not available';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('dashboardPublicKey').textContent = 'Error loading';
+                document.getElementById('validatorPublicKey').textContent = 'Error loading';
+            }
+        }
+
+        // Обработчик формы добавления валидатора
+        document.getElementById('addValidatorForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const response = await fetch('/api/validators/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        address: document.getElementById('validatorAddress').value,
+                        stake: parseFloat(document.getElementById('validatorStake').value)
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    alert('Validator added successfully!');
+                    updateValidatorList();
+                    updateDashboard();
+                } else {
+                    alert('Error adding validator: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error adding validator');
+            }
+        });
+
+        // Обновляем дашборд каждые 5 секунд
+        setInterval(updateDashboard, 5000);
+        // Получаем информацию о узле при загрузке страницы
+        getNodeInfo();
+        // Обновляем дашборд при загрузке страницы
+        updateDashboard();
+
+        // Update validator list
+        async function updateValidatorList() {
+            try {
+                const response = await fetch('/api/chain');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const tbody = document.getElementById('validatorList');
+                    tbody.innerHTML = '';
+                    
+                    // Сортируем валидаторов по стейку (по убыванию)
+                    const validators = Object.entries(data.validators || {})
+                        .sort(([, stake1], [, stake2]) => stake2 - stake1);
+                    
+                    validators.forEach(([address, stake]) => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td><span class="validator-status ${stake > 0 ? 'status-active' : 'status-inactive'}"></span></td>
+                            <td>${address}</td>
+                            <td>${stake}</td>
+                            <td>${getLastBlock(address, data.chain)}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    console.error('Error updating validator list:', data.error);
+                }
+            } catch (error) {
+                console.error('Error updating validator list:', error);
+            }
+        }
+
+        // Get last block for validator
+        function getLastBlock(address, chain) {
+            if (!chain || !Array.isArray(chain)) {
+                return '-';
+            }
+            
+            // Ищем последний блок, созданный этим валидатором
+            const validatorBlocks = chain.filter(block => block.validator === address);
+            return validatorBlocks.length > 0 ? validatorBlocks[validatorBlocks.length - 1].index : '-';
+        }
+
+        // Update transaction list
+        async function updateTransactionList() {
+            try {
+                const response = await fetch('/api/chain');
+                const data = await response.json();
+                const container = document.getElementById('transactionList');
+                container.innerHTML = '';
+                
+                const transactions = [...(data.pending_transactions || []), ...data.chain.flatMap(block => block.transactions || [])];
+                transactions.slice(-10).reverse().forEach(tx => {
+                    const div = document.createElement('div');
+                    div.className = 'mb-3 p-3 border rounded';
+                    div.innerHTML = `
+                        <div class="d-flex justify-content-between">
+                            <span>From: ${tx.from}</span>
+                            <span>To: ${tx.to}</span>
+                        </div>
+                        <div class="text-end">
+                            <strong>${tx.amount}</strong>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+            } catch (error) {
+                console.error('Error updating transaction list:', error);
+            }
+        }
+
+        // Initialize
+        updateDashboard();
+        updateContracts();
+        updateValidatorList();
+        updateTransactionList();
+
+        // Update periodically
+        setInterval(() => {
+            updateDashboard();
+            updateTransactionList();
+            updateValidatorList();
+        }, 10000);
+
+        // Обновление информации об узле
+        function updateNodeInfo() {
+            fetch('/api/node/info')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.public_key) {
+                        document.getElementById('dashboardPublicKey').textContent = data.public_key;
+                        document.getElementById('validatorPublicKey').textContent = data.public_key;
+                        document.getElementById('validatorAddress').value = data.public_key;
+                    } else {
+                        document.getElementById('dashboardPublicKey').textContent = 'Not available';
+                        document.getElementById('validatorPublicKey').textContent = 'Not available';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching node info:', error);
+                    document.getElementById('dashboardPublicKey').textContent = 'Error loading';
+                    document.getElementById('validatorPublicKey').textContent = 'Error loading';
+                });
+        }
+
+        // Обновление информации каждые 5 секунд
+        setInterval(updateNodeInfo, 5000);
+        updateNodeInfo(); // Первоначальное обновление
+    </script>
+</body>
+</html> 

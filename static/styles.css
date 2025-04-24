@@ -1,0 +1,25 @@
+.node-info {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    word-break: break-all;
+}
+
+.node-info h4 {
+    margin: 0 0 10px 0;
+    color: #495057;
+    font-size: 16px;
+}
+
+.node-info p {
+    margin: 0;
+    color: #212529;
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+#validatorAddress {
+    font-family: monospace;
+} 

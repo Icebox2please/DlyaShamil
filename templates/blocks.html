@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Blocks</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .block-card {
+            transition: transform 0.2s;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .block-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .block-header {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+            border-radius: 8px 8px 0 0;
+        }
+        .block-body {
+            padding: 20px;
+        }
+        .transaction-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .transaction-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .transaction-item:last-child {
+            border-bottom: none;
+        }
+        .back-button {
+            margin-bottom: 20px;
+        }
+        .hash-text {
+            font-family: monospace;
+            word-break: break-all;
+            cursor: pointer;
+            position: relative;
+        }
+        .hash-text:hover {
+            background-color: #f8f9fa;
+        }
+        .hash-tooltip {
+            position: absolute;
+            background-color: #333;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .hash-text:hover .hash-tooltip {
+            opacity: 1;
+        }
+        .copy-icon {
+            margin-left: 5px;
+            color: #6c757d;
+            cursor: pointer;
+        }
+        .copy-icon:hover {
+            color: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <a href="/" class="btn btn-primary back-button">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+        
+        <h2 class="mb-4">Blockchain Blocks</h2>
+        
+        <div id="blocks-container">
+            <!-- Blocks will be loaded here -->
+        </div>
+    </div>
+
+    <script>
+        function formatTimestamp(timestamp) {
+            return new Date(timestamp * 1000).toLocaleString();
+        }
+
+        function formatTransaction(tx) {
+            if (tx.type === 'transfer') {
+                return `Transfer: ${tx.from} → ${tx.to} (${tx.amount})`;
+            } else if (tx.type === 'validator') {
+                return `Validator: ${tx.address} (Stake: ${tx.stake})`;
+            } else if (tx.type === 'contract_deploy') {
+                return `Contract Deploy: ${tx.name}`;
+            } else if (tx.type === 'contract_execution') {
+                return `Contract Execution: ${tx.contract_name}.${tx.function}`;
+            }
+            return JSON.stringify(tx);
+        }
+
+        function formatHash(hash) {
+            if (!hash) return 'N/A';
+            return `${hash.substring(0, 8)}...${hash.substring(hash.length - 8)}`;
+        }
+
+        function createHashElement(hash, fullHash) {
+            const container = document.createElement('span');
+            container.className = 'hash-text';
+            container.innerHTML = `
+                ${formatHash(hash)}
+                <i class="fas fa-copy copy-icon"></i>
+                <span class="hash-tooltip">Click to copy full hash</span>
+            `;
+            
+            container.addEventListener('click', () => {
+                navigator.clipboard.writeText(fullHash).then(() => {
+                    const tooltip = container.querySelector('.hash-tooltip');
+                    tooltip.textContent = 'Copied!';
+                    setTimeout(() => {
+                        tooltip.textContent = 'Click to copy full hash';
+                    }, 2000);
+                });
+            });
+            
+            return container;
+        }
+
+        function loadBlocks() {
+            fetch('/api/chain')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('blocks-container');
+                    container.innerHTML = '';
+                    
+                    data.chain.forEach(block => {
+                        const blockCard = document.createElement('div');
+                        blockCard.className = 'card block-card';
+                        
+                        const previousHashElement = createHashElement(block.previous_hash, block.previous_hash);
+                        const hashElement = createHashElement(block.hash, block.hash);
+                        
+                        blockCard.innerHTML = `
+                            <div class="block-header">
+                                <h5 class="card-title">Block #${block.index}</h5>
+                                <small class="text-muted">${formatTimestamp(block.timestamp)}</small>
+                            </div>
+                            <div class="block-body">
+                                <p><strong>Validator:</strong> ${block.validator}</p>
+                                <p><strong>Previous Hash:</strong> </p>
+                                <p><strong>Hash:</strong> </p>
+                                <p><strong>Epoch:</strong> ${block.epoch}</p>
+                                <div class="mt-3">
+                                    <h6>Transactions (${block.transactions.length}):</h6>
+                                    <div class="transaction-list">
+                                        ${block.transactions.map(tx => `
+                                            <div class="transaction-item">
+                                                ${formatTransaction(tx)}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Добавляем элементы хеша после создания карточки
+                        blockCard.querySelector('p:nth-of-type(2)').appendChild(previousHashElement);
+                        blockCard.querySelector('p:nth-of-type(3)').appendChild(hashElement);
+                        
+                        container.appendChild(blockCard);
+                    });
+                })
+                .catch(error => console.error('Error loading blocks:', error));
+        }
+
+        // Load blocks initially and refresh every 10 seconds
+        loadBlocks();
+        setInterval(loadBlocks, 10000);
+    </script>
+</body>
+</html> 
