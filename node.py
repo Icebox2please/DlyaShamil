@@ -4,9 +4,12 @@ import json
 import time
 import logging
 import requests
+import hashlib
 from blockchain import Blockchain, Block
 from crypto import Crypto
 from typing import Dict, List, Optional, Any
+from token_standards import TokenType, TokenMetadata, ERC721, ERC1155
+from token_validator import TokenValidator
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +30,8 @@ class Node:
         self.mining_thread = None
         self.server_thread = None
         self.running = False
+        self.tokens = {}  # address -> token contract
+        self.token_validator = TokenValidator()
         
         # Генерация ключей для узла
         self.public_key, self.private_key = self.crypto.generate_key_pair()
@@ -417,4 +422,174 @@ class Node:
             else:
                 logger.error(f"Failed to get validators from peer {peer}: HTTP {response.status_code}")
         except Exception as e:
-            logger.error(f"Error syncing validators with peer {peer}: {str(e)}") 
+            logger.error(f"Error syncing validators with peer {peer}: {str(e)}")
+
+    def create_token(self, token_type: str, data: dict) -> dict:
+        """Создание нового токена"""
+        try:
+            # Валидация входных данных
+            if not data.get('name') or not data.get('symbol'):
+                raise ValueError("Name and symbol are required")
+
+            # Создание метаданных
+            metadata = TokenMetadata(
+                name=data['name'],
+                description=data.get('description', ''),
+                image=data.get('metadata', {}).get('image', ''),
+                attributes=data.get('metadata', {}).get('attributes', {})
+            )
+
+            # Создание контракта в зависимости от типа
+            if token_type == 'erc721':
+                contract = ERC721(data['name'], data['symbol'])
+            elif token_type == 'erc1155':
+                contract = ERC1155(data['name'])
+            else:
+                raise ValueError(f"Unsupported token type: {token_type}")
+
+            # Генерация адреса для токена
+            address = self._generate_address()
+
+            # Создание транзакции для деплоя контракта
+            tx = {
+                'type': 'contract_deploy',
+                'name': address,
+                'code': {
+                    'type': token_type,
+                    'name': data['name'],
+                    'symbol': data['symbol'],
+                    'metadata': metadata.to_json()
+                },
+                'timestamp': time.time()
+            }
+
+            # Добавление транзакции в блокчейн
+            self.blockchain.current_transactions.append(tx)
+
+            # Сохранение контракта локально
+            self.tokens[address] = contract
+
+            return {
+                'address': address,
+                'type': token_type,
+                'name': data['name'],
+                'symbol': data['symbol'],
+                'metadata': metadata.to_json()
+            }
+        except Exception as e:
+            logger.error(f"Error creating token: {str(e)}")
+            raise
+
+    def get_tokens(self) -> list:
+        """Получение списка всех токенов"""
+        try:
+            # Получаем состояния контрактов из блокчейна
+            chain_data = self.blockchain.get_chain()
+            contract_states = chain_data.get('contract_states', {})
+
+            tokens = []
+            for address, contract in self.tokens.items():
+                # Получаем состояние контракта из блокчейна
+                state = contract_states.get(address, {})
+                
+                tokens.append({
+                    'address': address,
+                    'type': 'erc721' if isinstance(contract, ERC721) else 'erc1155',
+                    'name': contract.name,
+                    'symbol': getattr(contract, 'symbol', ''),
+                    'totalSupply': contract.total_supply if hasattr(contract, 'total_supply') else 0,
+                    'state': state
+                })
+            return tokens
+        except Exception as e:
+            logger.error(f"Error getting tokens: {str(e)}")
+            raise
+
+    def get_token(self, token_id: str) -> Optional[dict]:
+        """Получение информации о токене"""
+        try:
+            contract = self.tokens.get(token_id)
+            if not contract:
+                return None
+
+            # Получаем состояние контракта из блокчейна
+            chain_data = self.blockchain.get_chain()
+            contract_states = chain_data.get('contract_states', {})
+            state = contract_states.get(token_id, {})
+
+            return {
+                'address': token_id,
+                'type': 'erc721' if isinstance(contract, ERC721) else 'erc1155',
+                'name': contract.name,
+                'symbol': getattr(contract, 'symbol', ''),
+                'totalSupply': contract.total_supply if hasattr(contract, 'total_supply') else 0,
+                'metadata': contract.metadata.to_json() if hasattr(contract, 'metadata') else None,
+                'state': state
+            }
+        except Exception as e:
+            logger.error(f"Error getting token: {str(e)}")
+            raise
+
+    def transfer_token(self, token_id: str, to: str, amount: Optional[int] = None) -> bool:
+        """Передача токена"""
+        try:
+            contract = self.tokens.get(token_id)
+            if not contract:
+                raise ValueError("Token not found")
+
+            if not self.token_validator.validate_address(to):
+                raise ValueError("Invalid recipient address")
+
+            # Создание транзакции для передачи токена
+            tx = {
+                'type': 'contract_execution',
+                'contract': token_id,
+                'function': 'transfer',
+                'args': {
+                    'from': contract.owner,
+                    'to': to,
+                    'token_id': token_id,
+                    'amount': amount
+                },
+                'timestamp': time.time()
+            }
+
+            # Добавление транзакции в блокчейн
+            self.blockchain.current_transactions.append(tx)
+
+            # Выполнение передачи локально
+            if isinstance(contract, ERC721):
+                return contract.transfer(contract.owner, to, token_id, contract.owner)
+            elif isinstance(contract, ERC1155):
+                if amount is None:
+                    raise ValueError("Amount is required for ERC1155 tokens")
+                return contract.transfer(contract.owner, to, token_id, amount, contract.owner)
+            else:
+                raise ValueError("Unsupported token type")
+
+        except Exception as e:
+            logger.error(f"Error transferring token: {str(e)}")
+            raise
+
+    def get_token_metadata(self, token_id: str) -> Optional[dict]:
+        """Получение метаданных токена"""
+        try:
+            contract = self.tokens.get(token_id)
+            if not contract or not hasattr(contract, 'metadata'):
+                return None
+
+            # Получаем состояние контракта из блокчейна
+            chain_data = self.blockchain.get_chain()
+            contract_states = chain_data.get('contract_states', {})
+            state = contract_states.get(token_id, {})
+
+            metadata = contract.metadata.to_json()
+            metadata['state'] = state
+            return metadata
+        except Exception as e:
+            logger.error(f"Error getting token metadata: {str(e)}")
+            raise
+
+    def _generate_address(self) -> str:
+        """Генерация уникального адреса для токена"""
+        return f"0x{hashlib.sha256(str(time.time()).encode()).hexdigest()[:40]}" 

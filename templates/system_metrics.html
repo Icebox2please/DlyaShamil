@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}System Metrics - GDE{% endblock %}
+
+{% block extra_css %}
+<style>
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 0.5rem;
+    }
+
+    .metric-label {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1rem;
+    }
+
+    .chart-container {
+        height: 300px;
+        margin-bottom: 2rem;
+    }
+
+    .card-title {
+        color: white;
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .card-title i {
+        color: var(--primary-color);
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="page-header">
+    <h1 class="page-title">System Metrics</h1>
+    <p class="page-subtitle">Monitor system resource usage</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-microchip me-2"></i>
+                        CPU Usage
+                    </h5>
+                    <div class="metric-value" id="cpuUsage">--</div>
+                    <div class="metric-label">Average: <span id="cpuAvg">--</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-memory me-2"></i>
+                        Memory Usage
+                    </h5>
+                    <div class="metric-value" id="memoryUsage">--</div>
+                    <div class="metric-label">Average: <span id="memoryAvg">--</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-hdd me-2"></i>
+                        Disk Usage
+                    </h5>
+                    <div class="metric-value" id="diskUsage">--</div>
+                    <div class="metric-label">Average: <span id="diskAvg">--</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-network-wired me-2"></i>
+                        Network Usage
+                    </h5>
+                    <div class="metric-value" id="networkUsage">--</div>
+                    <div class="metric-label">Average: <span id="networkAvg">--</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">CPU & Memory Usage</h5>
+                    <div class="chart-container">
+                        <canvas id="resourceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Disk & Network Usage</h5>
+                    <div class="chart-container">
+                        <canvas id="ioChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let resourceChart, ioChart;
+
+    function initializeCharts() {
+        // CPU & Memory Chart
+        const resourceCtx = document.getElementById('resourceChart').getContext('2d');
+        resourceChart = new Chart(resourceCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'CPU Usage (%)',
+                        data: [],
+                        borderColor: '#6366f1',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Memory Usage (%)',
+                        data: [],
+                        borderColor: '#ec4899',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Disk & Network Chart
+        const ioCtx = document.getElementById('ioChart').getContext('2d');
+        ioChart = new Chart(ioCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Disk Usage (%)',
+                        data: [],
+                        borderColor: '#10b981',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Network Usage (MB/s)',
+                        data: [],
+                        borderColor: '#f59e0b',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateMetrics() {
+        fetch('/api/system-metrics')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const metrics = data.metrics;
+                    const history = data.history;
+
+                    // Update current values
+                    document.getElementById('cpuUsage').textContent = `${metrics.cpu.average.toFixed(1)}%`;
+                    document.getElementById('memoryUsage').textContent = `${metrics.memory.average.toFixed(1)}%`;
+                    document.getElementById('diskUsage').textContent = `${metrics.disk.average.toFixed(1)}%`;
+                    document.getElementById('networkUsage').textContent = `${(metrics.network.average_sent / 1024 / 1024).toFixed(2)} MB/s`;
+
+                    // Update averages
+                    document.getElementById('cpuAvg').textContent = `${metrics.cpu.average.toFixed(1)}%`;
+                    document.getElementById('memoryAvg').textContent = `${metrics.memory.average.toFixed(1)}%`;
+                    document.getElementById('diskAvg').textContent = `${metrics.disk.average.toFixed(1)}%`;
+                    document.getElementById('networkAvg').textContent = `${(metrics.network.average_sent / 1024 / 1024).toFixed(2)} MB/s`;
+
+                    // Update charts
+                    resourceChart.data.labels = history.timestamps;
+                    resourceChart.data.datasets[0].data = history.cpu;
+                    resourceChart.data.datasets[1].data = history.memory;
+                    resourceChart.update();
+
+                    ioChart.data.labels = history.timestamps;
+                    ioChart.data.datasets[0].data = history.disk;
+                    ioChart.data.datasets[1].data = history.network_sent.map(v => v / 1024 / 1024);
+                    ioChart.update();
+                }
+            })
+            .catch(error => console.error('Error updating metrics:', error));
+    }
+
+    // Initialize
+    initializeCharts();
+    updateMetrics();
+    
+    // Update every 5 seconds
+    setInterval(updateMetrics, 5000);
+</script>
+{% endblock %} 

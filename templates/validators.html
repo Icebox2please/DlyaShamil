@@ -1,0 +1,618 @@
+{% extends "base.html" %}
+
+{% block title %}GDE - Validators{% endblock %}
+
+{% block extra_css %}
+<style>
+    .validator-card {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .validator-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        border-color: var(--primary-color);
+    }
+
+    .validator-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .validator-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 500;
+    }
+
+    .status-indicator {
+        width: 0.75rem;
+        height: 0.75rem;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+    }
+
+    .status-active {
+        background-color: var(--success-color);
+        box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+    }
+
+    .status-inactive {
+        background-color: var(--accent-color);
+        box-shadow: 0 0 10px rgba(236, 72, 153, 0.5);
+    }
+
+    .validator-address {
+        font-family: 'Fira Code', monospace;
+        font-size: 1.1rem;
+        color: var(--primary-color);
+        word-break: break-all;
+    }
+
+    .validator-details {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .detail-card {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1rem;
+        border-radius: 0.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .detail-card:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .detail-label {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .detail-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: white;
+    }
+
+    .validator-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .action-btn {
+        flex: 1;
+        padding: 0.75rem;
+        border: none;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .btn-stake {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+    }
+
+    .btn-stake:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-unstake {
+        background: rgba(236, 72, 153, 0.1);
+        color: var(--accent-color);
+        border: 1px solid var(--accent-color);
+    }
+
+    .btn-unstake:hover {
+        background: rgba(236, 72, 153, 0.2);
+        transform: translateY(-2px);
+    }
+
+    .stats-section {
+        margin-bottom: 3rem;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
+    }
+
+    .stat-card {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        border-color: var(--primary-color);
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(135deg, #fff 30%, rgba(255, 255, 255, 0.7));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .stat-label {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1rem;
+        font-weight: 500;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        background: var(--card-bg);
+        border-radius: 1rem;
+        margin: 2rem 0;
+    }
+
+    .empty-icon {
+        font-size: 3rem;
+        color: rgba(255, 255, 255, 0.1);
+        margin-bottom: 1rem;
+    }
+
+    .empty-text {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 1.1rem;
+    }
+
+    .stake-modal .modal-content {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .stake-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .stake-input {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: white;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+    }
+
+    .stake-input:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+    }
+
+    .create-validator-btn {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .create-validator-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        color: white;
+    }
+
+    .create-validator-modal .modal-content {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+    }
+
+    .modal-backdrop {
+        background-color: rgba(0, 0, 0, 0.8);
+    }
+
+    .modal-backdrop.show {
+        opacity: 1;
+    }
+
+    .create-validator-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .form-input {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: white;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+    }
+
+    .form-input:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<header class="page-header">
+    <div class="container">
+        <h1 class="page-title">Validator Explorer</h1>
+        <p class="page-subtitle">Monitor and interact with network validators</p>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="stats-section">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" id="totalValidators">0</div>
+            <div class="stat-label">Total Validators</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="activeValidators">0</div>
+            <div class="stat-label">Active Validators</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="totalStaked">0</div>
+            <div class="stat-label">Total Staked</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="averageStake">0</div>
+            <div class="stat-label">Average Stake</div>
+        </div>
+    </div>
+</section>
+
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <button class="create-validator-btn" data-bs-toggle="modal" data-bs-target="#createValidatorModal">
+                <i class="fas fa-plus-circle"></i>
+                Create New Validator
+            </button>
+        </div>
+    </div>
+
+    <div id="validatorsList">
+        <!-- Validators will be added here dynamically -->
+    </div>
+
+    <div id="emptyState" class="empty-state" style="display: none;">
+        <i class="fas fa-shield-alt empty-icon"></i>
+        <p class="empty-text">No validators found in the network</p>
+    </div>
+</div>
+
+<!-- Create Validator Modal -->
+<div class="modal fade" id="createValidatorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Validator</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form class="create-validator-form" id="createValidatorForm">
+                    <div class="mb-3">
+                        <label class="form-label">Validator Address</label>
+                        <input type="text" class="form-control form-input" id="validatorAddress" readonly>
+                        <small class="text-muted">Using node's address</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Initial Stake</label>
+                        <input type="number" class="form-control form-input" id="initialStake" min="0" step="0.01" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmCreate">Create Validator</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stake Modal -->
+<div class="modal fade" id="stakeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Stake Tokens</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form class="stake-form" id="stakeForm">
+                    <input type="hidden" id="validatorAddress">
+                    <div class="mb-3">
+                        <label class="form-label">Amount to Stake</label>
+                        <input type="number" class="form-control stake-input" id="stakeAmount" min="0" step="0.1" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmStake">Stake</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let stakeModal;
+    let createValidatorModal;
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        stakeModal = new bootstrap.Modal(document.getElementById('stakeModal'));
+        createValidatorModal = new bootstrap.Modal(document.getElementById('createValidatorModal'));
+    });
+
+    // Update validators list and stats
+    async function updateValidators() {
+        try {
+            const response = await fetch('/api/chain');
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                const validators = data.validators || {};
+                const validatorAddresses = Object.keys(validators);
+                
+                // Update stats
+                const totalValidators = validatorAddresses.length;
+                const activeValidators = validatorAddresses.filter(addr => validators[addr] > 0).length;
+                const totalStaked = validatorAddresses.reduce((sum, addr) => sum + validators[addr], 0);
+                const averageStake = totalValidators > 0 ? totalStaked / totalValidators : 0;
+                
+                document.getElementById('totalValidators').textContent = totalValidators;
+                document.getElementById('activeValidators').textContent = activeValidators;
+                document.getElementById('totalStaked').textContent = totalStaked.toFixed(2);
+                document.getElementById('averageStake').textContent = averageStake.toFixed(2);
+                
+                // Update validators list
+                const container = document.getElementById('validatorsList');
+                const emptyState = document.getElementById('emptyState');
+                
+                if (validatorAddresses.length === 0) {
+                    container.innerHTML = '';
+                    emptyState.style.display = 'block';
+                    return;
+                }
+                
+                emptyState.style.display = 'none';
+                container.innerHTML = validatorAddresses.map(address => 
+                    createValidatorCard(address, validators[address], data.chain)
+                ).join('');
+                
+                // Add event listeners to buttons
+                document.querySelectorAll('.btn-stake').forEach(btn => {
+                    btn.addEventListener('click', () => openStakeModal(btn.dataset.address));
+                });
+                
+                document.querySelectorAll('.btn-unstake').forEach(btn => {
+                    btn.addEventListener('click', () => unstakeFromValidator(btn.dataset.address));
+                });
+            }
+        } catch (error) {
+            console.error('Error updating validators:', error);
+        }
+    }
+
+    // Create validator card
+    function createValidatorCard(address, stake, chain) {
+        const isActive = stake > 0;
+        const lastBlock = getLastBlock(address, chain);
+        const performance = calculateValidatorPerformance(address, chain);
+        
+        return `
+            <div class="validator-card">
+                <div class="validator-header">
+                    <div class="validator-status">
+                        <div class="status-indicator ${isActive ? 'status-active' : 'status-inactive'}"></div>
+                        ${isActive ? 'Active' : 'Inactive'}
+                    </div>
+                    <div class="validator-address">${address}</div>
+                </div>
+                <div class="validator-details">
+                    <div class="detail-card">
+                        <div class="detail-label">Current Stake</div>
+                        <div class="detail-value">${stake.toFixed(2)}</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-label">Last Block</div>
+                        <div class="detail-value">${lastBlock}</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-label">Performance</div>
+                        <div class="detail-value">${performance}%</div>
+                    </div>
+                </div>
+                <div class="validator-actions">
+                    <button class="action-btn btn-stake" data-address="${address}">
+                        <i class="fas fa-plus-circle"></i>
+                        Stake
+                    </button>
+                    ${stake > 0 ? `
+                        <button class="action-btn btn-unstake" data-address="${address}">
+                            <i class="fas fa-minus-circle"></i>
+                            Unstake
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    // Get last block for validator
+    function getLastBlock(address, chain) {
+        if (!chain || !Array.isArray(chain)) {
+            return '-';
+        }
+        
+        const validatorBlocks = chain.filter(block => block.validator === address);
+        return validatorBlocks.length > 0 ? validatorBlocks[validatorBlocks.length - 1].index : '-';
+    }
+
+    // Calculate validator performance
+    function calculateValidatorPerformance(address, chain) {
+        if (!chain || !Array.isArray(chain)) {
+            return 0;
+        }
+        
+        const recentBlocks = chain.slice(-100);
+        const totalBlocks = recentBlocks.length;
+        const validatorBlocks = recentBlocks.filter(block => block.validator === address).length;
+        
+        return Math.round((validatorBlocks / totalBlocks) * 100);
+    }
+
+    // Open stake modal
+    function openStakeModal(address) {
+        document.getElementById('validatorAddress').value = address;
+        stakeModal.show();
+    }
+
+    // Stake to validator
+    async function stakeToValidator() {
+        const address = document.getElementById('validatorAddress').value;
+        const amount = parseFloat(document.getElementById('stakeAmount').value);
+        
+        if (!address || isNaN(amount) || amount <= 0) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/stake', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    validator: address,
+                    amount: amount
+                })
+            });
+            
+            const data = await response.json();
+            if (data.status === 'success') {
+                stakeModal.hide();
+                updateValidators();
+            }
+        } catch (error) {
+            console.error('Error staking:', error);
+        }
+    }
+
+    // Unstake from validator
+    async function unstakeFromValidator(address) {
+        try {
+            const response = await fetch('/api/unstake', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    validator: address
+                })
+            });
+            
+            const data = await response.json();
+            if (data.status === 'success') {
+                updateValidators();
+            }
+        } catch (error) {
+            console.error('Error unstaking:', error);
+        }
+    }
+
+    // Create validator
+    async function createValidator() {
+        const address = document.getElementById('validatorAddress').value;
+        const stake = parseFloat(document.getElementById('initialStake').value);
+        
+        if (!address || isNaN(stake) || stake <= 0) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/validators/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    address,
+                    stake
+                })
+            });
+            
+            const data = await response.json();
+            if (data.status === 'success') {
+                createValidatorModal.hide();
+                updateValidators();
+            }
+        } catch (error) {
+            console.error('Error creating validator:', error);
+        }
+    }
+
+    // Event listeners
+    document.getElementById('confirmStake').addEventListener('click', stakeToValidator);
+    document.getElementById('confirmCreate').addEventListener('click', createValidator);
+
+    // Initial load
+    updateValidators();
+
+    // Update every 10 seconds
+    setInterval(updateValidators, 10000);
+
+    // Get node info when modal opens
+    document.getElementById('createValidatorModal').addEventListener('show.bs.modal', async () => {
+        try {
+            const response = await fetch('/api/node/info');
+            const data = await response.json();
+            if (data.public_key) {
+                document.getElementById('validatorAddress').value = data.public_key;
+            }
+        } catch (error) {
+            console.error('Error getting node info:', error);
+        }
+    });
+</script>
+{% endblock %} 

@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+
+{% block title %}GDE - Home{% endblock %}
+
+{% block extra_css %}
+<style>
+    .welcome-section {
+        padding: 8rem 0 4rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .welcome-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(circle at center, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+        pointer-events: none;
+    }
+
+    .welcome-title {
+        font-size: 4rem;
+        font-weight: 800;
+        margin-bottom: 1.5rem;
+        background: linear-gradient(135deg, #fff 30%, rgba(255, 255, 255, 0.7));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .welcome-subtitle {
+        font-size: 1.5rem;
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 3rem;
+    }
+
+    .feature-card {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1.5rem;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+
+    .feature-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        border-color: var(--primary-color);
+    }
+
+    .feature-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1.5rem;
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .feature-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: white;
+    }
+
+    .feature-description {
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 1.5rem;
+        font-size: 1.1rem;
+    }
+
+    .btn-explore {
+        display: inline-block;
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        text-decoration: none;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .btn-explore:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        color: white;
+    }
+
+    .stats-section {
+        padding: 4rem 0;
+        background: linear-gradient(180deg, transparent 0%, rgba(99, 102, 241, 0.05) 100%);
+    }
+
+    .stat-card {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        border-color: var(--primary-color);
+    }
+
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(135deg, #fff 30%, rgba(255, 255, 255, 0.7));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .stat-label {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1.1rem;
+        font-weight: 500;
+    }
+
+    .latest-blocks {
+        margin-top: 4rem;
+    }
+
+    .block-list {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        overflow: hidden;
+    }
+
+    .block-item {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.3s ease;
+    }
+
+    .block-item:last-child {
+        border-bottom: none;
+    }
+
+    .block-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .block-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .block-number {
+        font-weight: 600;
+        color: var(--primary-color);
+    }
+
+    .block-time {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.9rem;
+    }
+
+    .block-transactions {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<section class="welcome-section">
+    <div class="container">
+        <h1 class="welcome-title">Welcome to GDE</h1>
+        <p class="welcome-subtitle">Explore a decentralized future with GDE — a transparent, secure, and scalable blockchain platform.</p>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <i class="fas fa-cubes feature-icon"></i>
+                    <h3 class="feature-title">Blocks</h3>
+                    <p class="feature-description">Explore the blockchain's building blocks and their contents</p>
+                    <a href="/blocks" class="btn-explore">View Blocks</a>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <i class="fas fa-exchange-alt feature-icon"></i>
+                    <h3 class="feature-title">Transactions</h3>
+                    <p class="feature-description">Track and analyze blockchain transactions in real-time</p>
+                    <a href="/transactions" class="btn-explore">View Transactions</a>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <i class="fas fa-file-contract feature-icon"></i>
+                    <h3 class="feature-title">Smart Contracts</h3>
+                    <p class="feature-description">Deploy and interact with smart contracts</p>
+                    <a href="/contracts" class="btn-explore">View Contracts</a>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <i class="fas fa-desktop feature-icon"></i>
+                    <h3 class="feature-title">System Metrics</h3>
+                    <p class="feature-description">Monitor system resource usage and performance</p>
+                    <a href="/system-metrics" class="btn-explore">View Metrics</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<section class="stats-section">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number" id="blockHeight">0</div>
+                    <div class="stat-label">Block Height</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number" id="activeValidators">0</div>
+                    <div class="stat-label">Active Validators</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number" id="pendingTransactions">0</div>
+                    <div class="stat-label">Pending Transactions</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number" id="networkHealth">100%</div>
+                    <div class="stat-label">Network Health</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="latest-blocks">
+    <div class="container">
+        <h2 class="mb-4">Latest Blocks</h2>
+        <div class="block-list" id="latestBlocks">
+            <!-- Latest blocks will be added here dynamically -->
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Update stats
+    async function updateStats() {
+        try {
+            const response = await fetch('/api/chain');
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                document.getElementById('blockHeight').textContent = data.chain.length;
+                document.getElementById('pendingTransactions').textContent = data.pending_transactions?.length || 0;
+                document.getElementById('activeValidators').textContent = Object.keys(data.validators || {}).length;
+                
+                const health = calculateNetworkHealth(data);
+                document.getElementById('networkHealth').textContent = `${health}%`;
+
+                // Update latest blocks
+                updateLatestBlocks(data.chain);
+            }
+        } catch (error) {
+            console.error('Error updating stats:', error);
+        }
+    }
+
+    function calculateNetworkHealth(data) {
+        if (!data.validators || Object.keys(data.validators).length === 0) {
+            return 0;
+        }
+        const activeValidators = Object.values(data.validators).filter(stake => stake > 0).length;
+        const totalValidators = Object.keys(data.validators).length;
+        return Math.round((activeValidators / totalValidators) * 100);
+    }
+
+    function updateLatestBlocks(chain) {
+        const container = document.getElementById('latestBlocks');
+        container.innerHTML = '';
+
+        const latestBlocks = chain.slice(-5).reverse();
+        latestBlocks.forEach(block => {
+            const blockTime = new Date(block.timestamp * 1000).toLocaleString();
+            const div = document.createElement('div');
+            div.className = 'block-item';
+            div.innerHTML = `
+                <div class="block-header">
+                    <div class="block-number">Block #${block.index}</div>
+                    <div class="block-time">${blockTime}</div>
+                </div>
+                <div class="block-transactions">
+                    <i class="fas fa-exchange-alt me-2"></i>
+                    ${block.transactions?.length || 0} transactions
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    // Update stats every 5 seconds
+    setInterval(updateStats, 5000);
+    updateStats();
+</script>
+{% endblock %} 

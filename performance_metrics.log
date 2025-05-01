@@ -1,0 +1,3 @@
+2025-05-01 20:21:07,620 - API get_contracts - Execution time: 0.0011 seconds, Method: GET, Path: /api/contracts
+2025-05-01 20:23:47,905 - API get_contracts - Execution time: 0.0000 seconds, Method: GET, Path: /api/contracts
+2025-05-01 20:24:43,972 - API contracts - Execution time: 0.0000 seconds, Method: GET, Path: /api/contracts

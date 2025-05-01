@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+
+{% block title %}GDE - Transactions{% endblock %}
+
+{% block extra_css %}
+<style>
+    .transaction-card {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .transaction-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        border-color: var(--primary-color);
+    }
+
+    .transaction-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .transaction-id {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--primary-color);
+    }
+
+    .transaction-time {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.9rem;
+    }
+
+    .transaction-details {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .detail-card {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1rem;
+        border-radius: 0.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .detail-card:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .detail-label {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .detail-value {
+        color: white;
+        font-weight: 500;
+        word-break: break-all;
+    }
+
+    .transaction-amount {
+        text-align: center;
+        padding: 1rem;
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        border-radius: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .amount-label {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .amount-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .filter-section {
+        margin-bottom: 2rem;
+    }
+
+    .filter-card {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 1.5rem;
+    }
+
+    .filter-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: white;
+    }
+
+    .filter-group {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .filter-input {
+        flex: 1;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 2rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .status-pending {
+        background: rgba(234, 179, 8, 0.2);
+        color: var(--warning-color);
+    }
+
+    .status-confirmed {
+        background: rgba(34, 197, 94, 0.2);
+        color: var(--success-color);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        background: var(--card-bg);
+        border-radius: 1rem;
+        margin: 2rem 0;
+    }
+
+    .empty-icon {
+        font-size: 3rem;
+        color: rgba(255, 255, 255, 0.1);
+        margin-bottom: 1rem;
+    }
+
+    .empty-text {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 1.1rem;
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<header class="page-header">
+    <div class="container">
+        <h1 class="page-title">Transaction Explorer</h1>
+        <p class="page-subtitle">Track and analyze blockchain transactions in real-time</p>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="filter-section">
+    <div class="filter-card">
+        <h3 class="filter-title">Filter Transactions</h3>
+        <div class="filter-group">
+            <div class="filter-input">
+                <input type="text" class="form-control" id="addressFilter" placeholder="Search by address...">
+            </div>
+            <div class="filter-input">
+                <select class="form-select" id="statusFilter">
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="confirmed">Confirmed</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" id="applyFilters">
+                <i class="fas fa-filter me-2"></i>Apply Filters
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="transactionsList">
+    <!-- Transactions will be added here dynamically -->
+</div>
+
+<div id="emptyState" class="empty-state" style="display: none;">
+    <i class="fas fa-search empty-icon"></i>
+    <p class="empty-text">No transactions found matching your criteria</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Update transaction list
+    async function updateTransactions() {
+        try {
+            const response = await fetch('/api/chain');
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                const addressFilter = document.getElementById('addressFilter').value.toLowerCase();
+                const statusFilter = document.getElementById('statusFilter').value;
+                
+                // Get all transactions from blocks and pending
+                const confirmedTransactions = data.chain.flatMap(block => 
+                    (block.transactions || []).map(tx => ({
+                        ...tx,
+                        status: 'confirmed',
+                        timestamp: block.timestamp,
+                        blockIndex: block.index
+                    }))
+                );
+                
+                const pendingTransactions = (data.pending_transactions || []).map(tx => ({
+                    ...tx,
+                    status: 'pending',
+                    timestamp: Date.now()
+                }));
+                
+                let transactions = [...pendingTransactions, ...confirmedTransactions];
+                
+                // Apply filters
+                if (addressFilter) {
+                    transactions = transactions.filter(tx => 
+                        tx.from.toLowerCase().includes(addressFilter) ||
+                        tx.to.toLowerCase().includes(addressFilter)
+                    );
+                }
+                
+                if (statusFilter !== 'all') {
+                    transactions = transactions.filter(tx => tx.status === statusFilter);
+                }
+                
+                // Sort by timestamp (newest first)
+                transactions.sort((a, b) => b.timestamp - a.timestamp);
+                
+                // Update UI
+                const container = document.getElementById('transactionsList');
+                const emptyState = document.getElementById('emptyState');
+                
+                if (transactions.length === 0) {
+                    container.innerHTML = '';
+                    emptyState.style.display = 'block';
+                    return;
+                }
+                
+                emptyState.style.display = 'none';
+                container.innerHTML = transactions.map(tx => createTransactionCard(tx)).join('');
+            }
+        } catch (error) {
+            console.error('Error updating transactions:', error);
+        }
+    }
+
+    // Create transaction card
+    function createTransactionCard(tx) {
+        const timestamp = new Date(tx.timestamp).toLocaleString();
+        const statusClass = tx.status === 'pending' ? 'status-pending' : 'status-confirmed';
+        
+        return `
+            <div class="transaction-card">
+                <div class="transaction-header">
+                    <div class="transaction-id">
+                        Transaction ${tx.status === 'confirmed' ? `#${tx.blockIndex}` : '(Pending)'}
+                    </div>
+                    <div class="transaction-time">${timestamp}</div>
+                </div>
+                <div class="transaction-details">
+                    <div class="detail-card">
+                        <div class="detail-label">From</div>
+                        <div class="detail-value">${tx.from}</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-label">To</div>
+                        <div class="detail-value">${tx.to}</div>
+                    </div>
+                </div>
+                <div class="transaction-amount">
+                    <div class="amount-label">Amount</div>
+                    <div class="amount-value">${tx.amount}</div>
+                </div>
+                <div class="text-end mt-3">
+                    <span class="status-badge ${statusClass}">
+                        <i class="fas fa-${tx.status === 'pending' ? 'clock' : 'check'} me-2"></i>
+                        ${tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
+                    </span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Event listeners
+    document.getElementById('applyFilters').addEventListener('click', updateTransactions);
+    document.getElementById('addressFilter').addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') updateTransactions();
+    });
+    document.getElementById('statusFilter').addEventListener('change', updateTransactions);
+
+    // Initial load
+    updateTransactions();
+
+    // Update every 10 seconds
+    setInterval(updateTransactions, 10000);
+</script>
+{% endblock %} 

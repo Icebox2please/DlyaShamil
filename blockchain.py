@@ -517,56 +517,47 @@ class Blockchain:
             logger.error(f"Error validating transaction: {str(e)}")
             return False
 
-    def validate_contract_deploy(self, transaction: Dict[str, Any]) -> bool:
-        """Валидация транзакции развертывания контракта"""
+    def validate_contract_deploy(self, transaction: dict) -> bool:
+        """Валидация транзакции деплоя контракта"""
         try:
-            required_fields = ['type', 'name', 'code', 'timestamp']
-            if not all(field in transaction for field in required_fields):
-                logger.error("Missing required fields in contract deployment transaction")
+            if not transaction.get('name') or not transaction.get('code'):
                 return False
-                
-            if transaction['type'] != 'contract_deploy':
-                logger.error("Invalid transaction type for contract deployment")
+
+            # Проверяем тип контракта
+            code = transaction['code']
+            if code.get('type') not in ['erc721', 'erc1155']:
                 return False
-                
-            if not transaction['name'] or not transaction['code']:
-                logger.error("Contract name and code are required")
+
+            # Проверяем обязательные поля
+            if not code.get('name'):
                 return False
-                
-            if transaction['name'] in self.contract_states:
-                logger.error("Contract with this name already exists")
+            if code.get('type') == 'erc721' and not code.get('symbol'):
                 return False
-                
+
             return True
         except Exception as e:
-            logger.error(f"Error validating contract deployment: {str(e)}")
+            logger.error(f"Error validating contract deploy: {str(e)}")
             return False
 
-    def validate_contract_execution(self, transaction: Dict[str, Any]) -> bool:
+    def validate_contract_execution(self, transaction: dict) -> bool:
         """Валидация транзакции выполнения контракта"""
         try:
-            required_fields = ['type', 'contract_name', 'function', 'args', 'timestamp']
-            if not all(field in transaction for field in required_fields):
-                logger.error("Missing required fields in contract execution transaction")
+            if not transaction.get('contract') or not transaction.get('function'):
                 return False
-                
-            if transaction['type'] != 'contract_execution':
-                logger.error("Invalid transaction type for contract execution")
+
+            # Проверяем существование контракта
+            contract_state = self.contract_states.get(transaction['contract'])
+            if not contract_state:
                 return False
-                
-            if not transaction['contract_name'] or not transaction['function']:
-                logger.error("Contract name and function are required")
-                return False
-                
-            if transaction['contract_name'] not in self.contract_states:
-                logger.error("Contract does not exist")
-                return False
-                
-            contract = self.contract_states[transaction['contract_name']]
-            if transaction['function'] not in contract:
-                logger.error("Function does not exist in contract")
-                return False
-                
+
+            # Проверяем функцию
+            if transaction['function'] == 'transfer':
+                args = transaction.get('args', {})
+                if not args.get('from') or not args.get('to'):
+                    return False
+                if contract_state['type'] == 'erc1155' and not args.get('amount'):
+                    return False
+
             return True
         except Exception as e:
             logger.error(f"Error validating contract execution: {str(e)}")
@@ -686,8 +677,34 @@ class Blockchain:
 
     def request_blocks(self, peer: Dict) -> List[Dict]:
         """Запрос блоков у пира"""
-        # Здесь должна быть реализация запроса блоков
-        return []
+        try:
+            # Формируем URL для запроса блоков
+            url = f"http://{peer['address']}:{peer['port']}/api/chain"
+            
+            # Отправляем GET запрос
+            response = requests.get(url)
+            if response.status_code != 200:
+                logger.error(f"Failed to get blocks from peer {peer['address']}:{peer['port']}: HTTP {response.status_code}")
+                return []
+            
+            # Парсим ответ
+            data = response.json()
+            if data.get('status') != 'success':
+                logger.error(f"Failed to get blocks from peer {peer['address']}:{peer['port']}: {data.get('error')}")
+                return []
+            
+            # Получаем цепочку блоков
+            chain = data.get('chain', [])
+            if not chain:
+                logger.warning(f"No blocks received from peer {peer['address']}:{peer['port']}")
+                return []
+            
+            logger.info(f"Received {len(chain)} blocks from peer {peer['address']}:{peer['port']}")
+            return chain
+            
+        except Exception as e:
+            logger.error(f"Error requesting blocks from peer {peer['address']}:{peer['port']}: {str(e)}")
+            return []
 
     def validate_chain(self, blocks: List[Dict]) -> bool:
         """Проверка цепочки блоков"""
@@ -723,68 +740,76 @@ class Blockchain:
         self.state[tx['from']] -= tx['amount']
         self.state[tx['to']] = self.state.get(tx['to'], 0) + tx['amount']
 
-    def apply_contract_deploy(self, tx: Dict):
-        """Применение деплоя контракта"""
+    def apply_contract_deploy(self, transaction: dict) -> None:
+        """Применение транзакции деплоя контракта"""
         try:
-            contract_name = tx['name']
-            code = tx['code']
+            code = transaction['code']
+            contract_type = code['type']
             
-            # Инициализация состояния контракта
-            self.contract_states[contract_name] = {
-                'code': code,
-                'counter': 0,  # Начальное значение счетчика
-                'last_updated': tx['timestamp']
+            # Создаем начальное состояние контракта
+            state = {
+                'type': contract_type,
+                'name': code['name'],
+                'symbol': code.get('symbol', ''),
+                'metadata': code.get('metadata', {}),
+                'owner': transaction.get('from', ''),
+                'balances': {},
+                'totalSupply': 0
             }
-            
-            # Инициализация событий контракта
-            self.contract_events[contract_name] = []
-            
-            logger.info(f"Contract {contract_name} deployed successfully")
-            
+
+            # Сохраняем состояние
+            self.contract_states[transaction['name']] = state
+
+            # Добавляем событие
+            self.contract_events.append({
+                'type': 'contract_deploy',
+                'contract': transaction['name'],
+                'timestamp': transaction['timestamp']
+            })
         except Exception as e:
-            logger.error(f"Error applying contract deployment: {str(e)}")
+            logger.error(f"Error applying contract deploy: {str(e)}")
             raise
 
-    def apply_contract_execution(self, tx: Dict):
-        """Применение выполнения контракта"""
+    def apply_contract_execution(self, transaction: dict) -> None:
+        """Применение транзакции выполнения контракта"""
         try:
-            contract_name = tx['contract']
-            function_name = tx['function']
-            args = tx['args']
-            
-            if contract_name not in self.contract_states:
-                raise ValueError(f"Contract {contract_name} not found")
-                
-            contract_state = self.contract_states[contract_name]
-            
-            # Выполняем функцию контракта
-            if function_name == 'increment':
-                contract_state['counter'] = contract_state.get('counter', 0) + 1
-                result = contract_state['counter']
-            elif function_name == 'decrement':
-                contract_state['counter'] = contract_state.get('counter', 0) - 1
-                result = contract_state['counter']
-            elif function_name == 'get_counter':
-                result = contract_state.get('counter', 0)
-            else:
-                raise ValueError(f"Unknown function {function_name}")
-                
-            # Обновляем состояние контракта
-            self.contract_states[contract_name] = contract_state
-            
-            # Добавляем событие
-            if contract_name not in self.contract_events:
-                self.contract_events[contract_name] = []
-            self.contract_events[contract_name].append({
-                'function': function_name,
-                'args': args,
-                'result': result,
-                'timestamp': tx['timestamp']
-            })
-            
-            logger.info(f"Contract {contract_name} function {function_name} executed successfully")
-            return result
-            
+            contract = transaction['contract']
+            function = transaction['function']
+            args = transaction.get('args', {})
+            state = self.contract_states[contract]
+
+            if function == 'transfer':
+                from_addr = args['from']
+                to_addr = args['to']
+                token_id = args.get('token_id')
+                amount = args.get('amount', 1)
+
+                # Проверяем баланс
+                if state['type'] == 'erc721':
+                    if state['balances'].get(token_id) != from_addr:
+                        raise ValueError("Insufficient balance")
+                    
+                    # Обновляем владельца токена
+                    state['balances'][token_id] = to_addr
+                else:  # erc1155
+                    balance_key = f"{from_addr}:{token_id}"
+                    if state['balances'].get(balance_key, 0) < amount:
+                        raise ValueError("Insufficient balance")
+                    
+                    # Обновляем балансы
+                    state['balances'][balance_key] = state['balances'].get(balance_key, 0) - amount
+                    state['balances'][f"{to_addr}:{token_id}"] = state['balances'].get(f"{to_addr}:{token_id}", 0) + amount
+
+                # Добавляем событие
+                self.contract_events.append({
+                    'type': 'token_transfer',
+                    'contract': contract,
+                    'from': from_addr,
+                    'to': to_addr,
+                    'token_id': token_id,
+                    'amount': amount,
+                    'timestamp': transaction['timestamp']
+                })
         except Exception as e:
             logger.error(f"Error applying contract execution: {str(e)}")
             raise
@@ -888,41 +913,41 @@ class Blockchain:
         return len(self.chain)
 
     def execute_contract(self, name: str, function: str, args: List[Any], gas_limit: Optional[int] = None) -> Any:
-        """Выполнение смарт-контракта"""
+        """Выполнение функции контракта"""
         try:
+            # Проверяем существование контракта
             if name not in self.contract_states:
                 raise ValueError(f"Contract {name} not found")
                 
-            contract_state = self.contract_states[name]
+            # Получаем код контракта
+            code = self.contract_states[name]['code']
             
-            # Создаем транзакцию для выполнения контракта
-            tx = {
-                'type': 'contract_execution',
-                'contract': name,
-                'function': function,
-                'args': args,
-                'timestamp': time.time()
-            }
+            # Парсим контракт
+            contract = parse_contract(code)
             
-            # Добавляем транзакцию в пул
-            self.current_transactions.append(tx)
-            
-            # Ждем, пока транзакция будет обработана
-            while tx in self.current_transactions:
-                time.sleep(0.1)
+            # Проверяем существование функции
+            if function not in contract.functions:
+                raise ValueError(f"Function {function} not found in contract {name}")
                 
-            # Получаем результат из состояния контракта
-            if name in self.contract_states:
-                contract_state = self.contract_states[name]
-                if function in contract_state:
-                    return contract_state[function]
-                else:
-                    raise ValueError(f"Function {function} not found in contract {name}")
-            else:
-                raise ValueError(f"Contract {name} not found after execution")
+            # Создаем виртуальную машину
+            vm = VirtualMachine()
+            
+            # Устанавливаем текущее состояние контракта
+            vm.state = self.contract_states[name]['state']
+            
+            # Выполняем функцию
+            result = vm.execute(contract, function, args)
+            
+            # Обновляем состояние контракта
+            self.contract_states[name]['state'] = vm.state
+            
+            # Добавляем события
+            if vm.events:
+                self.contract_states[name]['events'].extend(vm.events)
                 
+            return result
         except Exception as e:
-            logger.error(f"Error executing contract: {str(e)}")
+            logger.error(f"Error executing contract {name}.{function}: {str(e)}")
             raise
 
     def _reserve_gas(self, transaction, gas_amount):
@@ -1050,17 +1075,13 @@ class Blockchain:
         
         return 0
 
-    def get_contract_state(self, name):
-        """Возвращает текущее состояние контракта"""
-        if name not in self.contract_states:
-            raise ValueError(f"Contract {name} not found")
-        return self.contract_states[name]['state']
+    def get_contract_state(self, name: str) -> Optional[Dict]:
+        """Получение состояния контракта"""
+        return self.contract_states.get(name, {}).get('state')
 
-    def get_contract_events(self, name):
-        """Возвращает события контракта"""
-        if name not in self.contract_events:
-            raise ValueError(f"Contract {name} not found")
-        return self.contract_events[name]
+    def get_contract_events(self, name: str) -> List[Dict]:
+        """Получение событий контракта"""
+        return self.contract_states.get(name, {}).get('events', [])
 
     def get_gas_info(self, transaction_id):
         """Возвращает информацию о газе для транзакции"""
@@ -1413,36 +1434,33 @@ class Blockchain:
             raise
 
     def deploy_contract(self, name: str, code: str, gas_limit: Optional[int] = None) -> bool:
-        """Deploy a new smart contract"""
+        """Деплой нового контракта"""
         try:
-            # Validate contract name and code
-            if not name or not code:
-                raise ValueError("Contract name and code are required")
-                
-            if name in self.contract_states:
-                raise ValueError(f"Contract {name} already exists")
-                
-            # Initialize contract state
-            self.contract_states[name] = {}
-            self.contract_events[name] = []
+            # Парсим контракт
+            contract = parse_contract(code)
             
-            # Create deployment transaction
-            tx = {
-                'type': 'contract_deploy',
-                'name': name,
+            # Проверяем, что контракт с таким именем еще не существует
+            if name in self.contract_states:
+                logger.error(f"Contract {name} already exists")
+                return False
+                
+            # Инициализируем состояние контракта
+            self.contract_states[name] = {
                 'code': code,
-                'gas_limit': gas_limit,
-                'timestamp': time.time()
+                'state': {},
+                'events': []
             }
             
-            # Add transaction to pending list
-            self.current_transactions.append(tx)
-            
-            logging.info(f"Contract {name} deployed successfully")
+            # Выполняем конструктор контракта, если он есть
+            if '__init__' in contract.functions:
+                vm = VirtualMachine()
+                vm.execute(contract, '__init__', [])
+                self.contract_states[name]['state'] = vm.state
+                
+            logger.info(f"Contract {name} deployed successfully")
             return True
-            
         except Exception as e:
-            logging.error(f"Error deploying contract: {str(e)}")
+            logger.error(f"Error deploying contract {name}: {str(e)}")
             return False
 
     def process_new_block(self, block_data: Dict[str, Any]) -> bool:

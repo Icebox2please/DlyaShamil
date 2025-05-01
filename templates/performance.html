@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Performance Metrics - GDE{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        height: 300px;
+        margin-bottom: 2rem;
+    }
+
+    .card-title {
+        color: white;
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .card-title i {
+        color: var(--primary-color);
+    }
+
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 0.5rem;
+    }
+
+    .metric-label {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="page-header">
+    <h1 class="page-title">Performance Metrics</h1>
+    <p class="page-subtitle">Monitor system performance and network health</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Node Performance
+                </h5>
+                <div class="chart-container">
+                    <canvas id="nodePerformanceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-cube me-2"></i>
+                    Blockchain Performance
+                </h5>
+                <div class="chart-container">
+                    <canvas id="blockchainPerformanceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-tachometer-alt me-2"></i>
+                    System Metrics
+                </h5>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="stats-card p-3 rounded">
+                            <h6>Average Block Time</h6>
+                            <h3 id="avgBlockTime">--</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card p-3 rounded">
+                            <h6>Transactions per Second</h6>
+                            <h3 id="txPerSecond">--</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card p-3 rounded">
+                            <h6>Network Latency</h6>
+                            <h3 id="networkLatency">--</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card p-3 rounded">
+                            <h6>Active Nodes</h6>
+                            <h3 id="activeNodes">--</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Initialize charts
+    const nodePerformanceCtx = document.getElementById('nodePerformanceChart').getContext('2d');
+    const blockchainPerformanceCtx = document.getElementById('blockchainPerformanceChart').getContext('2d');
+
+    const nodePerformanceChart = new Chart(nodePerformanceCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Node Response Time (ms)',
+                data: [],
+                borderColor: '#6366f1',
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.7)'
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.7)'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: 'rgba(255, 255, 255, 0.7)'
+                    }
+                }
+            }
+        }
+    });
+
+    const blockchainPerformanceChart = new Chart(blockchainPerformanceCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Block Processing Time (ms)',
+                data: [],
+                borderColor: '#ec4899',
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.7)'
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.7)'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: 'rgba(255, 255, 255, 0.7)'
+                    }
+                }
+            }
+        }
+    });
+
+    // Update metrics
+    function updateMetrics() {
+        fetch('/api/metrics?range=1h')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Update charts
+                    nodePerformanceChart.data.labels = data.timestamps;
+                    nodePerformanceChart.data.datasets[0].data = data.node_performance;
+                    nodePerformanceChart.update();
+
+                    blockchainPerformanceChart.data.labels = data.timestamps;
+                    blockchainPerformanceChart.data.datasets[0].data = data.blockchain_performance;
+                    blockchainPerformanceChart.update();
+
+                    // Update stats with proper formatting
+                    document.getElementById('avgBlockTime').textContent = 
+                        data.avg_block_time ? `${data.avg_block_time.toFixed(2)} ms` : '--';
+                    document.getElementById('txPerSecond').textContent = 
+                        data.tx_per_second ? data.tx_per_second.toFixed(2) : '--';
+                    document.getElementById('networkLatency').textContent = 
+                        data.network_latency ? `${data.network_latency.toFixed(2)} ms` : '--';
+                    document.getElementById('activeNodes').textContent = 
+                        data.active_nodes || '--';
+                }
+            })
+            .catch(error => console.error('Error updating metrics:', error));
+    }
+
+    // Initial update
+    updateMetrics();
+
+    // Update every 5 seconds
+    setInterval(updateMetrics, 5000);
+</script>
+{% endblock %} 

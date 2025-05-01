@@ -3,15 +3,21 @@ import logging
 import socket
 from flask import Flask, jsonify, request, render_template
 from node import Node
-from dsl import SmartContractDSL
+from blockchain import Blockchain
+from metrics import MetricsCollector
+from dsl import SmartContract, DataType, Parameter, Function, ContractState
+from contract_parser import parse_contract
 import json
 import os
 import sys
 import time
 from typing import Dict, Any, Optional, List, Tuple
-from blockchain import Blockchain, Block
+from blockchain import Block
 import functools
-from datetime import datetime
+from datetime import datetime, timedelta
+import psutil
+from system_metrics_collector import SystemMetricsCollector
+from vm import VirtualMachine
 
 # Настройка логирования
 logging.basicConfig(
@@ -83,7 +89,12 @@ app = Flask(__name__,
             template_folder=TEMPLATES_DIR,
             static_folder=STATIC_DIR)
 node = None
-dsl = None
+
+# Инициализация сборщика метрик
+metrics_collector = MetricsCollector()
+
+# Инициализация сборщика системных метрик
+system_metrics_collector = SystemMetricsCollector()
 
 def is_port_in_use(port: int) -> bool:
     """Проверка занятости порта"""
@@ -206,8 +217,7 @@ def handle_error(error):
 
 @app.route('/')
 def index():
-    """Главная страница"""
-    return render_template('index.html')
+    return render_template('home.html', active_page='home')
 
 @app.route('/contract')
 def contract():
@@ -215,13 +225,26 @@ def contract():
 
 @app.route('/blocks')
 def blocks():
-    return render_template('blocks.html')
+    return render_template('blocks.html', active_page='blocks')
+
+@app.route('/transactions')
+def transactions():
+    return render_template('transactions.html', active_page='transactions')
+
+@app.route('/validators')
+def validators():
+    return render_template('validators.html', active_page='validators')
+
+@app.route('/contracts')
+def contracts():
+    return render_template('contracts.html', active_page='contracts')
 
 @log_api_performance("get_chain")
 @app.route('/api/chain', methods=['GET'])
 def get_chain():
     """Получение состояния блокчейна"""
     try:
+        start_time = time.time()  # Добавляем измерение времени
         chain_data = node.get_chain()
         
         # Преобразуем блоки в словари
@@ -236,6 +259,14 @@ def get_chain():
                 block_dict['hash'] = node.blockchain.hash_block(block_dict)
             
             chain_with_hashes.append(block_dict)
+        
+        # Собираем метрики блокчейна
+        blockchain_metrics = {
+            "block_time": time.time() - start_time,
+            "transactions_count": len(chain_data['chain'][-1].transactions) if chain_data['chain'] else 0,
+            "block_size": len(json.dumps(chain_data['chain'][-1].__dict__)) if chain_data['chain'] else 0
+        }
+        metrics_collector.collect_blockchain_metrics(blockchain_metrics)
         
         return jsonify({
             'chain': chain_with_hashes,
@@ -256,6 +287,7 @@ def get_chain():
 def get_node_info():
     """Получение информации о ноде"""
     try:
+        start_time = time.time()  # Добавляем измерение времени
         # Получаем информацию о блокчейне
         chain_info = node.get_chain()
         
@@ -271,10 +303,22 @@ def get_node_info():
             'network_health': chain_info.get('network_health', 0)
         }
         
+        # Собираем метрики узла
+        node_metrics = {
+            "status": "up",
+            "response_time": time.time() - start_time,
+            "memory_usage": psutil.Process().memory_info().rss / 1024 / 1024,  # MB
+            "cpu_usage": psutil.Process().cpu_percent()
+        }
+        metrics_collector.collect_node_metrics(node.public_key, node_metrics)
+        
         return jsonify(response), 200
     except Exception as e:
         logger.error(f"Error getting node info: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'error': str(e),
+            'status': 'error'
+        }), 500
 
 @log_api_performance("add_validator")
 @app.route('/api/validators/add', methods=['POST'])
@@ -334,9 +378,8 @@ def start_node(port: int = 5000) -> None:
         logger.info(f"Found available port: {port}")
         
         # Создаем и запускаем узел
-        global node, dsl
+        global node
         node = Node(port=port)
-        dsl = SmartContractDSL()
         node.start()
         
         # Запускаем Flask приложение
@@ -359,7 +402,6 @@ def run_node(port: int) -> None:
         # Создаем и запускаем узел
         global local_node
         local_node = Node(port=port)
-        local_dsl = SmartContractDSL()
         local_node.start()
         
         # Добавляем маршрут для получения информации об узле
@@ -534,6 +576,315 @@ def get_validators():
         return jsonify({
             'error': str(e),
             'status': 'error'
+        }), 500
+
+@app.route('/metrics')
+def metrics():
+    return render_template('metrics.html', active_page='metrics')
+
+@app.route('/api/metrics')
+def get_metrics():
+    """Получение метрик производительности"""
+    try:
+        # Получаем метрики за последние 24 часа
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=24)
+        
+        report = metrics_collector.generate_performance_report(start_time, end_time)
+        
+        return jsonify({
+            'metrics': report,
+            'status': 'success'
+        })
+    except Exception as e:
+        logger.error(f"Error getting metrics: {str(e)}")
+        return jsonify({
+            'error': str(e),
+            'status': 'error'
+        }), 500
+
+@app.route('/performance')
+def performance():
+    return render_template('performance.html', active_page='performance')
+
+@app.route('/system-metrics')
+def system_metrics():
+    return render_template('system_metrics.html', active_page='system_metrics')
+
+@app.route('/api/system-metrics')
+def get_system_metrics():
+    """Получение системных метрик"""
+    try:
+        # Собираем текущие метрики
+        system_metrics_collector.collect_metrics()
+        
+        # Получаем отчет за последний час
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=1)
+        
+        report = system_metrics_collector.get_metrics_report(start_time, end_time)
+        
+        return jsonify(report)
+    except Exception as e:
+        logger.error(f"Error getting system metrics: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+
+# Token API endpoints
+@app.route('/api/tokens', methods=['GET'])
+@log_api_performance("get_tokens")
+def get_tokens():
+    """Получение списка всех токенов"""
+    try:
+        tokens = node.get_tokens()
+        return jsonify({
+            'status': 'success',
+            'tokens': tokens
+        })
+    except Exception as e:
+        logger.error(f"Error getting tokens: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/tokens/<token_type>', methods=['POST'])
+@log_api_performance("create_token")
+def create_token(token_type):
+    """Создание нового токена"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'status': 'error',
+                'message': 'No data provided'
+            }), 400
+
+        result = node.create_token(token_type, data)
+        return jsonify({
+            'status': 'success',
+            'token': result
+        })
+    except Exception as e:
+        logger.error(f"Error creating token: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/tokens/<token_id>', methods=['GET'])
+@log_api_performance("get_token")
+def get_token(token_id):
+    """Получение информации о токене"""
+    try:
+        token = node.get_token(token_id)
+        if not token:
+            return jsonify({
+                'status': 'error',
+                'message': 'Token not found'
+            }), 404
+        return jsonify({
+            'status': 'success',
+            'token': token
+        })
+    except Exception as e:
+        logger.error(f"Error getting token: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/tokens/<token_id>/transfer', methods=['POST'])
+@log_api_performance("transfer_token")
+def transfer_token(token_id):
+    """Передача токена"""
+    try:
+        data = request.get_json()
+        if not data or 'to' not in data:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid transfer data'
+            }), 400
+
+        result = node.transfer_token(token_id, data['to'], data.get('amount'))
+        return jsonify({
+            'status': 'success',
+            'result': result
+        })
+    except Exception as e:
+        logger.error(f"Error transferring token: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/tokens/<token_id>/metadata', methods=['GET'])
+@log_api_performance("get_token_metadata")
+def get_token_metadata(token_id):
+    """Получение метаданных токена"""
+    try:
+        metadata = node.get_token_metadata(token_id)
+        if not metadata:
+            return jsonify({
+                'status': 'error',
+                'message': 'Token metadata not found'
+            }), 404
+        return jsonify({
+            'status': 'success',
+            'metadata': metadata
+        })
+    except Exception as e:
+        logger.error(f"Error getting token metadata: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/contracts', methods=['GET', 'POST'])
+@log_api_performance("contracts")
+def handle_contracts():
+    """Обработка GET и POST запросов для контрактов"""
+    if request.method == 'GET':
+        try:
+            # Пытаемся получить узел из глобальной области или локального процесса
+            current_node = None
+            if 'node' in globals() and node is not None:
+                current_node = node
+            elif 'local_node' in globals() and local_node is not None:
+                current_node = local_node
+                
+            if not current_node:
+                logger.error("No node instance available")
+                return jsonify({
+                    'error': 'Node not initialized',
+                    'status': 'error'
+                }), 500
+                
+            contracts = current_node.blockchain.contract_states
+            return jsonify({
+                'status': 'success',
+                'contracts': contracts
+            })
+        except Exception as e:
+            logger.error(f"Error getting contracts: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'error': str(e)
+            }), 500
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({
+                    'status': 'error',
+                    'error': 'No data provided'
+                }), 400
+                
+            name = data.get('name')
+            code = data.get('code')
+            
+            if not name or not code:
+                return jsonify({
+                    'status': 'error',
+                    'error': 'Missing required fields: name and code'
+                }), 400
+                
+            # Пытаемся получить узел из глобальной области или локального процесса
+            current_node = None
+            if 'node' in globals() and node is not None:
+                current_node = node
+            elif 'local_node' in globals() and local_node is not None:
+                current_node = local_node
+                
+            if not current_node:
+                logger.error("No node instance available")
+                return jsonify({
+                    'error': 'Node not initialized',
+                    'status': 'error'
+                }), 500
+                
+            # Парсим контракт
+            contract = parse_contract(code)
+            
+            # Деплоим контракт в блокчейн
+            success = current_node.blockchain.deploy_contract(name, code)
+            
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Contract deployed successfully',
+                    'contract': contract
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'error': 'Failed to deploy contract'
+                }), 500
+        except Exception as e:
+            logger.error(f"Error deploying contract: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'error': str(e)
+            }), 500
+
+@app.route('/api/contracts/<contract_name>', methods=['GET'])
+@log_api_performance("get_contract")
+def get_contract(contract_name):
+    """Получение информации о контракте"""
+    try:
+        state = node.blockchain.get_contract_state(contract_name)
+        events = node.blockchain.get_contract_events(contract_name)
+        
+        if state is None:
+            return jsonify({
+                'status': 'error',
+                'error': 'Contract not found'
+            }), 404
+            
+        return jsonify({
+            'status': 'success',
+            'contract': {
+                'name': contract_name,
+                'state': state,
+                'events': events
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error getting contract: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+
+@app.route('/api/contracts/<contract_name>/execute', methods=['POST'])
+@log_api_performance("execute_contract")
+def execute_contract(contract_name):
+    """Выполнение функции контракта"""
+    try:
+        data = request.get_json()
+        function = data.get('function')
+        args = data.get('args', [])
+        
+        if not function:
+            return jsonify({
+                'status': 'error',
+                'error': 'Missing required field: function'
+            }), 400
+            
+        # Выполняем функцию контракта
+        result = node.blockchain.execute_contract(contract_name, function, args)
+        
+        return jsonify({
+            'status': 'success',
+            'result': result
+        })
+    except Exception as e:
+        logger.error(f"Error executing contract: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
         }), 500
 
 if __name__ == '__main__':

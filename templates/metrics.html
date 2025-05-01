@@ -1,0 +1,401 @@
+{% extends "base.html" %}
+
+{% block title %}GDE - Performance Metrics{% endblock %}
+
+{% block extra_css %}
+<style>
+    .metrics-section {
+        padding: 2rem 0;
+    }
+
+    .chart-container {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        transition: all 0.3s ease;
+    }
+
+    .chart-container:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        border-color: var(--primary-color);
+    }
+
+    .chart-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: white;
+        margin-bottom: 1rem;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2rem;
+    }
+
+    .metric-card {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        border-color: var(--primary-color);
+    }
+
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(135deg, #fff 30%, rgba(255, 255, 255, 0.7));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .metric-label {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1rem;
+        font-weight: 500;
+    }
+
+    .time-range-selector {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .time-range-btn {
+        padding: 0.5rem 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 0.5rem;
+        color: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .time-range-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .time-range-btn.active {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+
+    @media (max-width: 768px) {
+        .metrics-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<header class="page-header">
+    <div class="container">
+        <h1 class="page-title">Performance Metrics</h1>
+        <p class="page-subtitle">Monitor and analyze system performance in real-time</p>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="time-range-selector">
+        <button class="time-range-btn active" data-range="1h">1 Hour</button>
+        <button class="time-range-btn" data-range="6h">6 Hours</button>
+        <button class="time-range-btn" data-range="24h">24 Hours</button>
+        <button class="time-range-btn" data-range="7d">7 Days</button>
+    </div>
+
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-value" id="avgBlockTime">0</div>
+            <div class="metric-label">Average Block Time</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value" id="txPerSecond">0</div>
+            <div class="metric-label">Transactions per Second</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value" id="avgGasUsed">0</div>
+            <div class="metric-label">Average Gas Used</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value" id="networkLoad">0%</div>
+            <div class="metric-label">Network Load</div>
+        </div>
+    </div>
+
+    <div class="metrics-section">
+        <div class="chart-container">
+            <h3 class="chart-title">Block Time Distribution</h3>
+            <canvas id="blockTimeChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+            <h3 class="chart-title">Transaction Throughput</h3>
+            <canvas id="txThroughputChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+            <h3 class="chart-title">Gas Usage Over Time</h3>
+            <canvas id="gasUsageChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+            <h3 class="chart-title">Network Load</h3>
+            <canvas id="networkLoadChart"></canvas>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let charts = {};
+    let currentTimeRange = '1h';
+
+    // Initialize charts
+    function initializeCharts() {
+        // Block Time Distribution Chart
+        charts.blockTime = new Chart(document.getElementById('blockTimeChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Block Time (seconds)',
+                    data: [],
+                    borderColor: '#6366f1',
+                    tension: 0.4,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Transaction Throughput Chart
+        charts.txThroughput = new Chart(document.getElementById('txThroughputChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Transactions per Second',
+                    data: [],
+                    borderColor: '#10b981',
+                    tension: 0.4,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Gas Usage Chart
+        charts.gasUsage = new Chart(document.getElementById('gasUsageChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Gas Used',
+                    data: [],
+                    borderColor: '#f59e0b',
+                    tension: 0.4,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Network Load Chart
+        charts.networkLoad = new Chart(document.getElementById('networkLoadChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Network Load (%)',
+                    data: [],
+                    borderColor: '#ef4444',
+                    tension: 0.4,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Update metrics
+    async function updateMetrics() {
+        try {
+            const response = await fetch(`/api/metrics?range=${currentTimeRange}`);
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                // Update metric cards
+                document.getElementById('avgBlockTime').textContent = `${data.metrics.avg_block_time.toFixed(2)}s`;
+                document.getElementById('txPerSecond').textContent = data.metrics.tx_per_second.toFixed(2);
+                document.getElementById('avgGasUsed').textContent = data.metrics.avg_gas_used.toFixed(0);
+                document.getElementById('networkLoad').textContent = `${data.metrics.network_load.toFixed(1)}%`;
+
+                // Update charts
+                updateChart(charts.blockTime, data.metrics.block_times);
+                updateChart(charts.txThroughput, data.metrics.tx_throughput);
+                updateChart(charts.gasUsage, data.metrics.gas_usage);
+                updateChart(charts.networkLoad, data.metrics.network_load_history);
+            }
+        } catch (error) {
+            console.error('Error updating metrics:', error);
+        }
+    }
+
+    function updateChart(chart, data) {
+        chart.data.labels = data.labels;
+        chart.data.datasets[0].data = data.values;
+        chart.update();
+    }
+
+    // Event listeners
+    document.querySelectorAll('.time-range-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.time-range-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentTimeRange = btn.dataset.range;
+            updateMetrics();
+        });
+    });
+
+    // Initialize
+    initializeCharts();
+    updateMetrics();
+    
+    // Update every 5 seconds
+    setInterval(updateMetrics, 5000);
+</script>
+{% endblock %} 
