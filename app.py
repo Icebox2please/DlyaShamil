@@ -2,6 +2,7 @@ import argparse
 import logging
 import socket
 from flask import Flask, jsonify, request, render_template
+from json_encoder import CustomJSONEncoder
 from node import Node
 from blockchain import Blockchain
 from metrics import MetricsCollector
@@ -88,6 +89,7 @@ logger.info(f"Static directory: {STATIC_DIR}")
 app = Flask(__name__,
             template_folder=TEMPLATES_DIR,
             static_folder=STATIC_DIR)
+app.json_encoder = CustomJSONEncoder
 node = None
 
 # Инициализация сборщика метрик
@@ -511,6 +513,68 @@ def run_node(port: int) -> None:
                                 'status': 'error'
                             }), 500
                     node_app.add_url_rule(rule.rule, rule.endpoint, get_chain_wrapper)
+                elif rule.endpoint == 'handle_contracts':
+                    # Специальная обработка для маршрута contracts
+                    def handle_contracts_wrapper():
+                        if request.method == 'GET':
+                            try:
+                                contracts = local_node.blockchain.contract_states
+                                return jsonify({
+                                    'status': 'success',
+                                    'contracts': contracts
+                                })
+                            except Exception as e:
+                                logger.error(f"Error getting contracts: {str(e)}")
+                                return jsonify({
+                                    'status': 'error',
+                                    'error': str(e)
+                                }), 500
+                        elif request.method == 'POST':
+                            try:
+                                data = request.get_json()
+                                if not data:
+                                    return jsonify({
+                                        'status': 'error',
+                                        'error': 'No data provided'
+                                    }), 400
+                                
+                                name = data.get('name')
+                                code = data.get('code')
+                                
+                                if not name or not code:
+                                    return jsonify({
+                                        'status': 'error',
+                                        'error': 'Missing required fields: name and code'
+                                    }), 400
+                                
+                                # Парсим контракт
+                                contract = parse_contract(code)
+                                
+                                # Деплоим контракт в блокчейн
+                                success = local_node.blockchain.deploy_contract(name, code)
+                                
+                                if success:
+                                    return jsonify({
+                                        'status': 'success',
+                                        'message': 'Contract deployed successfully',
+                                        'contract': {
+                                            'name': contract.name,
+                                            'state': contract.state.__json__(),
+                                            'functions': list(contract.functions.keys())
+                                        }
+                                    })
+                                else:
+                                    return jsonify({
+                                        'status': 'error',
+                                        'error': 'Failed to deploy contract'
+                                    }), 500
+                            except Exception as e:
+                                logger.error(f"Error deploying contract: {str(e)}")
+                                return jsonify({
+                                    'status': 'error',
+                                    'error': str(e)
+                                }), 500
+                    node_app.add_url_rule(rule.rule, rule.endpoint, handle_contracts_wrapper, methods=['GET', 'POST'])
                 else:
                     node_app.add_url_rule(rule.rule, rule.endpoint, app.view_functions[rule.endpoint])
         
@@ -815,7 +879,11 @@ def handle_contracts():
                 return jsonify({
                     'status': 'success',
                     'message': 'Contract deployed successfully',
-                    'contract': contract
+                    'contract': {
+                        'name': contract.name,
+                        'state': contract.state.__json__(),
+                        'functions': list(contract.functions.keys())
+                    }
                 })
             else:
                 return jsonify({

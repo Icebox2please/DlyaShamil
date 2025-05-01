@@ -6,6 +6,8 @@ from crypto import Crypto
 import hashlib
 from typing import Dict, List, Optional, Any, Union
 import requests
+from contract_parser import parse_contract
+from vm import VirtualMachine
 
 logger = logging.getLogger(__name__)
 
@@ -936,7 +938,7 @@ class Blockchain:
             vm.state = self.contract_states[name]['state']
             
             # Выполняем функцию
-            result = vm.execute(contract, function, args)
+            result = vm.execute(contract, function, args, caller='system')
             
             # Обновляем состояние контракта
             self.contract_states[name]['state'] = vm.state
@@ -1454,7 +1456,8 @@ class Blockchain:
             # Выполняем конструктор контракта, если он есть
             if '__init__' in contract.functions:
                 vm = VirtualMachine()
-                vm.execute(contract, '__init__', [])
+                # Передаем аргументы для конструктора: name, symbol, initial_supply
+                vm.execute(contract, '__init__', [name, name, 1000000], caller='system')
                 self.contract_states[name]['state'] = vm.state
                 
             logger.info(f"Contract {name} deployed successfully")

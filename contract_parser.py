@@ -2,6 +2,11 @@ from typing import Dict, Any, List, Optional
 import ast
 from dsl import SmartContract, DataType, Parameter, Function, ContractState
 
+def parse_contract(code: str) -> SmartContract:
+    """Вспомогательная функция для разбора контракта"""
+    parser = ContractParser()
+    return parser.parse_contract(code)
+
 class ContractParser:
     """Парсер для разбора кода смарт-контрактов"""
     
@@ -12,14 +17,18 @@ class ContractParser:
     def parse_contract(self, code: str) -> SmartContract:
         """Разбор кода контракта"""
         try:
+            print(f"Parsing contract code:\n{code}")  # Логируем входной код
+            
             # Очистка кода
             code = self._clean_code(code)
+            print(f"Cleaned code:\n{code}")  # Логируем очищенный код
             
             # Создание контракта
             self.contract = SmartContract("Contract")
             
             # Парсинг состояния
             state_vars = self._parse_state(code)
+            print(f"State variables: {state_vars}")  # Логируем найденные переменные состояния
             for var_name, var_type in state_vars.items():
                 self.contract.state.variables[var_name] = var_type
             
@@ -32,6 +41,7 @@ class ContractParser:
             return self.contract
             
         except Exception as e:
+            print(f"Error details: {str(e)}")  # Логируем детали ошибки
             raise ValueError(f"Error parsing contract: {str(e)}")
     
     def _clean_code(self, code: str) -> str:
@@ -41,8 +51,8 @@ class ContractParser:
             # Удаление комментариев
             if '#' in line:
                 line = line[:line.index('#')]
-            # Удаление лишних пробелов
-            line = line.strip()
+            # Сохраняем отступы, но удаляем лишние пробелы в конце
+            line = line.rstrip()
             if line:
                 lines.append(line)
         return '\n'.join(lines)
@@ -51,15 +61,25 @@ class ContractParser:
         """Разбор переменных состояния"""
         state_vars = {}
         lines = code.split('\n')
+        in_state_section = True  # Флаг для определения секции состояния
+        
         for line in lines:
-            if ':' in line and '=' not in line:
+            # Проверяем, не началась ли секция функций
+            if line.startswith('def '):
+                in_state_section = False
+                continue
+                
+            # Парсим только в секции состояния
+            if in_state_section and ':' in line and '=' not in line:
                 parts = line.split(':')
                 if len(parts) == 2:
                     var_name = parts[0].strip()
                     var_type = parts[1].strip()
+                    print(f"Parsing state variable: {var_name} of type {var_type}")  # Логируем каждую переменную
                     try:
                         state_vars[var_name] = DataType[var_type.upper()]
                     except KeyError:
+                        print(f"Invalid type found: {var_type}")  # Логируем неверный тип
                         raise ValueError(f"Invalid type: {var_type}")
         return state_vars
     
@@ -77,17 +97,13 @@ class ContractParser:
         if node.returns:
             return_type = self._parse_type(node.returns.id)
         
-        # Создание функции
-        function = Function(
+        # Добавление функции в контракт
+        self.contract.add_function(
             name=node.name,
             params=params,
             return_type=return_type,
-            code=ast.unparse(node),
-            visibility='public'  # По умолчанию все функции публичные
+            code=ast.unparse(node)
         )
-        
-        # Добавление функции в контракт
-        self.contract.add_function(function)
     
     def _parse_type(self, type_name: str) -> DataType:
         """Разбор типа данных"""
@@ -95,11 +111,6 @@ class ContractParser:
             return DataType[type_name.upper()]
         except KeyError:
             raise ValueError(f"Invalid type: {type_name}")
-
-def parse_contract(code: str) -> SmartContract:
-    """Вспомогательная функция для разбора контракта"""
-    parser = ContractParser()
-    return parser.parse_contract(code)
 
 # Пример использования
 if __name__ == "__main__":

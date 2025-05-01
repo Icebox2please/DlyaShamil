@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Contracts</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .contract-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .contract-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .contract-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+        .contract-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .contract-state {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+        .contract-functions {
+            margin-top: 15px;
+        }
+        .function-card {
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .function-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .function-title {
+            font-weight: bold;
+        }
+        .function-params {
+            margin-bottom: 10px;
+        }
+        .param-input {
+            margin-bottom: 5px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .code-editor {
+            font-family: monospace;
+            min-height: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Smart Contracts</h1>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#deployContractModal">
+                <i class="fas fa-plus"></i> Deploy Contract
+            </button>
+        </div>
+
+        <div id="contractsList">
+            <!-- Contracts will be loaded here -->
+        </div>
+
+        <!-- Deploy Contract Modal -->
+        <div class="modal fade" id="deployContractModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Deploy New Contract</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="deployContractForm">
+                            <div class="mb-3">
+                                <label class="form-label">Contract Name</label>
+                                <input type="text" class="form-control" id="contractName" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Contract Code</label>
+                                <textarea class="form-control code-editor" id="contractCode" required></textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="deployContract()">Deploy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Execute Function Modal -->
+        <div class="modal fade" id="executeFunctionModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Execute Contract Function</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="executeFunctionForm">
+                            <input type="hidden" id="currentContractName">
+                            <div class="mb-3">
+                                <label class="form-label">Function Name</label>
+                                <input type="text" class="form-control" id="functionName" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Arguments (JSON array)</label>
+                                <input type="text" class="form-control" id="functionArgs" placeholder='["arg1", "arg2"]'>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="executeFunction()">Execute</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Load contracts on page load
+        document.addEventListener('DOMContentLoaded', loadContracts);
+
+        async function loadContracts() {
+            try {
+                const response = await fetch('/api/contracts');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const contractsList = document.getElementById('contractsList');
+                    contractsList.innerHTML = '';
+                    
+                    if (Object.keys(data.contracts).length === 0) {
+                        contractsList.innerHTML = `
+                            <div class="empty-state">
+                                <i class="fas fa-file-code fa-3x mb-3"></i>
+                                <h3>No Contracts Deployed</h3>
+                                <p>Deploy your first smart contract to get started</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    for (const [name, state] of Object.entries(data.contracts)) {
+                        const contractCard = createContractCard(name, state);
+                        contractsList.appendChild(contractCard);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading contracts:', error);
+                alert('Failed to load contracts');
+            }
+        }
+
+        function createContractCard(name, state) {
+            const card = document.createElement('div');
+            card.className = 'contract-card';
+            
+            // Создаем функции для контракта
+            const functionsHtml = createContractFunctions(name);
+            
+            card.innerHTML = `
+                <div class="contract-header">
+                    <div class="contract-title">${name}</div>
+                </div>
+                <div class="contract-state">
+                    <h6>State</h6>
+                    <pre>${JSON.stringify(state, null, 2)}</pre>
+                </div>
+                <div class="contract-functions">
+                    <h6>Functions</h6>
+                    ${functionsHtml}
+                </div>
+            `;
+            return card;
+        }
+
+        function createContractFunctions(contractName) {
+            return `
+                <div class="function-card">
+                    <div class="function-header">
+                        <div class="function-title">get_info()</div>
+                        <button class="btn btn-sm btn-primary" onclick="executeFunction('${contractName}', 'get_info', [])">
+                            Execute
+                        </button>
+                    </div>
+                </div>
+                <div class="function-card">
+                    <div class="function-header">
+                        <div class="function-title">balance_of(account)</div>
+                        <button class="btn btn-sm btn-primary" onclick="showBalanceOfModal('${contractName}')">
+                            Execute
+                        </button>
+                    </div>
+                </div>
+                <div class="function-card">
+                    <div class="function-header">
+                        <div class="function-title">transfer(to, amount)</div>
+                        <button class="btn btn-sm btn-primary" onclick="showTransferModal('${contractName}')">
+                            Execute
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function deployContract() {
+            const name = document.getElementById('contractName').value;
+            const code = document.getElementById('contractCode').value;
+            
+            try {
+                const response = await fetch('/api/contracts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, code })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    alert('Contract deployed successfully');
+                    bootstrap.Modal.getInstance(document.getElementById('deployContractModal')).hide();
+                    loadContracts();
+                } else {
+                    alert('Failed to deploy contract: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error deploying contract:', error);
+                alert('Failed to deploy contract');
+            }
+        }
+
+        function showExecuteFunctionModal(contractName) {
+            document.getElementById('currentContractName').value = contractName;
+            const modal = new bootstrap.Modal(document.getElementById('executeFunctionModal'));
+            modal.show();
+        }
+
+        async function executeFunction() {
+            const contractName = document.getElementById('currentContractName').value;
+            const functionName = document.getElementById('functionName').value;
+            const argsInput = document.getElementById('functionArgs').value;
+            
+            let args = [];
+            try {
+                args = JSON.parse(argsInput);
+            } catch (e) {
+                alert('Invalid arguments format. Please provide a valid JSON array');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/contracts/${contractName}/execute`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ function: functionName, args })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    alert('Function executed successfully. Result: ' + JSON.stringify(data.result));
+                    bootstrap.Modal.getInstance(document.getElementById('executeFunctionModal')).hide();
+                    loadContracts();
+                } else {
+                    alert('Failed to execute function: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error executing function:', error);
+                alert('Failed to execute function');
+            }
+        }
+
+        function showBalanceOfModal(contractName) {
+            const account = prompt('Enter account address:');
+            if (account) {
+                executeFunction(contractName, 'balance_of', [account]);
+            }
+        }
+
+        function showTransferModal(contractName) {
+            const to = prompt('Enter recipient address:');
+            if (!to) return;
+            
+            const amount = prompt('Enter amount to transfer:');
+            if (!amount) return;
+            
+            executeFunction(contractName, 'transfer', [to, parseInt(amount)]);
+        }
+    </script>
+</body>
+</html> 

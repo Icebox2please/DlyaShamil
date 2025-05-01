@@ -242,6 +242,9 @@ class VirtualMachine:
             return self._execute_list(node, local_vars)
         elif isinstance(node, ast.Subscript):
             return self._execute_subscript(node, local_vars)
+        elif isinstance(node, ast.FunctionDef):
+            # Для определения функции просто пропускаем его, так как функции уже определены в контракте
+            return None
         else:
             raise VMError(f"Unsupported AST node: {type(node)}")
     
